@@ -15,7 +15,9 @@ import org.jnetpcap.protocol.network.Ip4;
 import org.jnetpcap.protocol.tcpip.Tcp;
 import org.springframework.stereotype.Component;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 
 
@@ -53,7 +55,7 @@ public class PacketCapture {
             System.out.printf("[%d]번 : %s [%s]n\n", i++, device.getName(), description);
         }
 
-        // 실제 사용할 네트워크를 지정하기 (나 같은 경우는 [Intel(R) I211 Gigabit Network Connection]
+        // 실제 사용할 네트워크를 지정하기
         device = allDevs.get(1);
         System.out.printf("선택한 장치 : %s\n", (device.getDescription() != null) ? device.getDescription() : device.getName());
 
@@ -67,6 +69,10 @@ public class PacketCapture {
             System.out.printf("패킷 캡처를 위해 네트워크 장치를 여는 데 실패했습니다. 오류 : " + errbuf.toString());
             return;
         }
+    }
+
+    protected void finalize() {
+        pcap.close();
     }
 
     public void capturePacket() {
@@ -83,7 +89,6 @@ public class PacketCapture {
         };
         // loop를 통해 10개만 출력하게 했다.
         pcap.loop(10, jPacketHandler, "jNetPcap");
-        pcap.close();
 
         System.out.println("\n");
     }
@@ -157,11 +162,31 @@ public class PacketCapture {
                 System.out.printf("출발지 TCP 주소 = %d\n도착지 TCP 주소 = %d\n",
                         tcp.source(), tcp.destination());
             }
-            if(packet.hasHeader(payload)) {
+            if (packet.hasHeader(payload)) {
                 System.out.printf("페이로드의 길이 = %d\n", payload.getLength());
                 System.out.print(payload.toHexdump());
             }
         }
-        pcap.close();
     }
+
+    public void sendPacket() {
+
+        System.out.println("[SEND PACKET]\n");
+        byte[] bytes = new byte[14];
+        Arrays.fill(bytes, (byte) 0xff);
+        // 전송을 하기 위한 기본 변수 설정
+        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        // 전송 실패시
+        if (pcap.sendPacket(buffer) != Pcap.OK) {
+            System.out.println(pcap.getErr());
+        }
+        // 어떠한 메시지를 실질적으로 보냈는지 확인하는 부분
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            // 0xff 와 AND연산해서 1인 부분만 true 연산
+            sb.append(String.format("%02x ", b & 0xff));
+        }
+        System.out.println("전송한 패킷 : " + sb.toString());
+    }
+
 }

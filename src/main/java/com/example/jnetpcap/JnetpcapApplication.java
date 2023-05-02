@@ -16,7 +16,9 @@ public class JnetpcapApplication {
 
         packetCapture.showMac();
 
-        packetCapture.sniffPacket();
+        //packetCapture.sniffPacket();
+
+        packetCapture.sendPacket();
     }
 
 }
