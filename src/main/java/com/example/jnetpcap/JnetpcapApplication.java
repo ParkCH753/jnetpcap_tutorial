@@ -8,17 +8,19 @@ import org.springframework.context.ApplicationContext;
 public class JnetpcapApplication {
 
     public static void main(String[] args) throws ClassNotFoundException {
+
         ApplicationContext context = SpringApplication.run(JnetpcapApplication.class, args);
-        //PacketCapture packetCapture = context.getBean(PacketCapture.class);
-        PacketCapture packetCapture = new PacketCapture();
+        JPacketCapture jPacketCapture = context.getBean(JPacketCapture.class);
 
-        packetCapture.capturePacket();
-
-        packetCapture.showMac();
-
-        //packetCapture.sniffPacket();
-
-        packetCapture.sendPacket();
+        jPacketCapture.captureNaverPacket();
+//        PacketCapture packetCapture = context.getBean(PacketCapture.class);
+//
+//        packetCapture.capturePacket();
+//
+//        packetCapture.showMac();
+//        //packetCapture.sniffPacket();
+//
+//        packetCapture.sendPacket();
     }
 
 }

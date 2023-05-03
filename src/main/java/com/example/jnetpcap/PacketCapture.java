@@ -5,15 +5,11 @@ import org.jnetpcap.PcapHeader;
 import org.jnetpcap.PcapIf;
 import org.jnetpcap.nio.JBuffer;
 import org.jnetpcap.nio.JMemory;
-import org.jnetpcap.packet.JRegistry;
-import org.jnetpcap.packet.Payload;
-import org.jnetpcap.packet.PcapPacket;
-import org.jnetpcap.packet.PcapPacketHandler;
+import org.jnetpcap.packet.*;
 import org.jnetpcap.packet.format.FormatUtils;
 import org.jnetpcap.protocol.lan.Ethernet;
 import org.jnetpcap.protocol.network.Ip4;
 import org.jnetpcap.protocol.tcpip.Tcp;
-import org.springframework.stereotype.Component;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -21,29 +17,23 @@ import java.util.Arrays;
 import java.util.Date;
 
 
-@Component
+
 public class PacketCapture {
 
-    private ArrayList<PcapIf> allDevs;
-    private StringBuilder errbuf;
+    private final ArrayList<PcapIf> allDevs;
     private Pcap pcap;
-    private PcapIf device;
-
-    private int snaplen;
-    private int flags;
-    private int timeout;
 
     public PacketCapture() {
-        allDevs = new ArrayList<PcapIf>();
+        allDevs = new ArrayList<>();
         // 네트워크 어댑터들을 저장할 수 있는 배열생성
-        errbuf = new StringBuilder();
+        StringBuilder errBuf = new StringBuilder();
         // 오류 메시지를 담을 수 있는 변수 생성
-        // 오류 발생시 errbuf안에 오류들을 담게 된다.
+        // 오류 발생시 errBuf안에 오류들을 담게 된다.
 
-        int r = Pcap.findAllDevs(allDevs, errbuf);
+        int r = Pcap.findAllDevs(allDevs, errBuf);
         // Pcap이 -1이거나 비어있으면 오류 발생 메시지 출력
-        if (r == Pcap.NOT_OK || allDevs.isEmpty()) {
-            System.out.println("네트워크 장치를 찾을 수 없습니다." + errbuf.toString());
+        if (r == Pcap.NEXT_EX_NOT_OK || allDevs.isEmpty()) {
+            System.out.println("네트워크 장치를 찾을 수 없습니다." + errBuf);
             return;
         }
 
@@ -56,19 +46,53 @@ public class PacketCapture {
         }
 
         // 실제 사용할 네트워크를 지정하기
-        device = allDevs.get(1);
-        System.out.printf("선택한 장치 : %s\n", (device.getDescription() != null) ? device.getDescription() : device.getName());
+        PcapIf device1 = allDevs.get(1);
+        System.out.printf("선택한 장치 : %s\n", (device1.getDescription() != null) ? device1.getDescription() : device1.getName());
 
-        snaplen = 64 * 1024; // 패킷을 얼마나 캡쳐할 것인지에 대한 옵션
-        flags = Pcap.MODE_NON_PROMISCUOUS; // 패킷검열 없이 받아들이는 옵션
-        timeout = 10 * 1000; // 10000ms 만큼 timeout 설정
+        int snapLen = 64 * 1024; // 패킷을 얼마나 캡쳐할 것인지에 대한 옵션
+        int flags = Pcap.MODE_NON_PROMISCUOUS; // 패킷검열 없이 받아들이는 옵션
+        int timeout = 10 * 1000; // 10000ms 만큼 timeout 설정
 
-        pcap = Pcap.openLive(device.getName(), snaplen, flags, timeout, errbuf);
+        pcap = Pcap.openLive(device1.getName(), snapLen, flags, timeout, errBuf);
         // 에러 발생시 에러메시지 출력
         if (pcap == null) {
-            System.out.printf("패킷 캡처를 위해 네트워크 장치를 여는 데 실패했습니다. 오류 : " + errbuf.toString());
-            return;
+            System.out.printf("패킷 캡처를 위해 네트워크 장치를 여는 데 실패했습니다. 오류 : " + errBuf);
         }
+
+//        String filterExpression = "host www.example.com";
+//        JPacketHandler<String> packetHandler = new JPacketHandler<String>() {
+//            public void nextPacket(JPacket packet, String user) {
+//                System.out.printf("Received packet at %s%n", new Date(packet.getCaptureHeader().timestampInMillis()));
+//                System.out.println(packet);
+//            }
+//        };
+//        // BPF 필터 설정
+//        PcapBpfProgram bpf = new PcapBpfProgram();
+//        String expression = "tcp port 443";
+//        int optimize = 0;
+//        int netmask = 0xFFFFFF00;
+//        if (pcap.compile(bpf, expression, optimize, netmask) != Pcap.OK) {
+//            System.err.println(pcap.getErr());
+//            return;
+//        }
+//        if (pcap.setFilter(bpf) != Pcap.OK) {
+//            System.err.println(pcap.getErr());
+//        }
+//
+//        // 패킷 처리 핸들러 등록
+//        JPacketHandler<String> handler = new JPacketHandler<String>() {
+//            public void nextPacket(JPacket packet, String user) {
+//                Ip4 ip = new Ip4();
+//                if (packet.hasHeader(ip)) {
+//                    // 패킷에 IP 헤더가 있는 경우 처리
+//                    byte[] data = packet.getByteArray(ip.size(), packet.size() - ip.size());
+//                    if (data.length > 0 && (data[0] == 22)) {
+//                        // 패킷 데이터의 첫 바이트가 22인 경우 처리 (SSL 핸드셰이크 메시지)
+//                        System.out.printf("Found HTTPS packet:\n%s\n", packet.toHexdump(packet.size(), false, true, true));
+//                    }
+//                }
+//            }
+//        };
     }
 
     protected void finalize() {
@@ -80,15 +104,20 @@ public class PacketCapture {
         System.out.println("[PACKET CAPTURE]\n");
 
         // pcap에서 제공하는 함수임으로 Override를 해야하고 형식도 맞춰야한다.
-        PcapPacketHandler<String> jPacketHandler = new PcapPacketHandler<String>() {
+        PcapPacketHandler<String> jPacketHandler = new PcapPacketHandler<>() {
             @Override
             public void nextPacket(PcapPacket packet, String user) {
-                System.out.printf("캡처 시작: %s\n 패킷의 길이: %-4d\n", new Date(packet.getCaptureHeader().timestampInMillis()),
-                        packet.getCaptureHeader().caplen());
+                System.out.printf("캡처 시작: %s\n 패킷의 길이: %-4d\n",
+                        new Date(packet.getCaptureHeader().timestampInMillis()),
+                        packet.getCaptureHeader().caplen()
+                );
+                System.out.println(packet);
+                System.out.println(user);
             }
         };
+
         // loop를 통해 10개만 출력하게 했다.
-        pcap.loop(10, jPacketHandler, "jNetPcap");
+        pcap.loop(10, jPacketHandler, "jnetjNetPcap");
 
         System.out.println("\n");
     }
@@ -164,7 +193,7 @@ public class PacketCapture {
             }
             if (packet.hasHeader(payload)) {
                 System.out.printf("페이로드의 길이 = %d\n", payload.getLength());
-                System.out.print(payload.toHexdump());
+                //System.out.print(payload.toHexdump());
             }
         }
     }
@@ -186,7 +215,7 @@ public class PacketCapture {
             // 0xff 와 AND연산해서 1인 부분만 true 연산
             sb.append(String.format("%02x ", b & 0xff));
         }
-        System.out.println("전송한 패킷 : " + sb.toString());
+        System.out.println("전송한 패킷 : " + sb);
     }
 
 }
