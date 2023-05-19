@@ -6,6 +6,8 @@ import org.jnetpcap.PcapBpfProgram;
 import org.jnetpcap.PcapIf;
 import org.jnetpcap.packet.JPacket;
 import org.jnetpcap.packet.JPacketHandler;
+import org.jnetpcap.packet.PcapPacket;
+import org.jnetpcap.packet.PcapPacketHandler;
 import org.jnetpcap.protocol.network.Ip4;
 import org.jnetpcap.protocol.tcpip.Tcp;
 import org.springframework.stereotype.Component;
@@ -60,7 +62,6 @@ public class JPacketCapture {
 
     public void captureNaverPacket() {
 
-
         //네이버 도메인 관련 필터 생성
         String filter = "tcp port 443";
         PcapBpfProgram program = new PcapBpfProgram();
@@ -85,7 +86,7 @@ public class JPacketCapture {
             e.printStackTrace();
         }
 
-        // 도메인 IP 고정된 부분 추출하기
+//         도메인 IP 고정된 부분 추출하기
         //223.130
         String regex = "^(\\d{1,3}\\.\\d{1,3})\\..*";
         String extractedAddr = null;
@@ -103,6 +104,7 @@ public class JPacketCapture {
         String finalExtractedAddr = extractedAddr;
         System.out.println("finalExtractedAddr = " + finalExtractedAddr);
 
+        String finalAddrNaver = addrNaver;
         JPacketHandler<String> packetHandler = new JPacketHandler<>() {
             private final Tcp tcp = new Tcp();
             private final Ip4 ip = new Ip4();
@@ -114,16 +116,16 @@ public class JPacketCapture {
             public void nextPacket(JPacket packet, String user) {
                 if (packet.hasHeader(tcp) && packet.hasHeader(ip)) {
 
-                    System.out.printf("캡처 시작: %s\n 패킷의 길이: %-4d\n", new Date(packet.getCaptureHeader().timestampInMillis()),
-                            packet.getCaptureHeader().caplen());
-
-                    //System.out.println("packet.toString() = " + packet.toString());
+//                    System.out.printf("캡처 시작: %s\n 패킷의 길이: %-4d\n", new Date(packet.getCaptureHeader().timestampInMillis()),
+//                            packet.getCaptureHeader().caplen());
+//
+//                    //System.out.println("packet.toString() = " + packet.toString());
                     String srcIp = org.jnetpcap.packet.format.FormatUtils.ip(ip.source());
                     String dstIp = org.jnetpcap.packet.format.FormatUtils.ip(ip.destination());
-                    System.out.println("Source IP: " + srcIp);
-                    System.out.println("Destination IP: " + dstIp);
+//                    System.out.println("Source IP: " + srcIp);
+//                    System.out.println("Destination IP: " + dstIp);
                     //네이버로 오고가는 패킷 캡쳐 및 추출
-                    if (srcIp.startsWith(finalExtractedAddr) || dstIp.startsWith(finalExtractedAddr)) {
+                    if (srcIp.startsWith(finalAddrNaver) || dstIp.startsWith(finalAddrNaver)) {
 
                         long usedTime; //사용시간 (단위는 우선 밀리세컨드, 추후 수정 가능)
 
@@ -170,7 +172,7 @@ public class JPacketCapture {
                 return sb.toString();
             }
         };
-        pcap.loop(Pcap.LOOP_INFINITE, packetHandler, "");
+        pcap.loop(30, packetHandler, "");
 
 
     }
@@ -217,7 +219,7 @@ public class JPacketCapture {
                 return sb.toString();
             }
         };
-        pcap.loop(Pcap.LOOP_INFINITE, packetHandler, "");
+        pcap.loop(30, packetHandler, "");
 
     }
 
@@ -270,5 +272,28 @@ public class JPacketCapture {
 
     public void close() {
         pcap.close();
+    }
+
+    public void findIP (){
+            String domain = "naver.com"; // 도메인 이름 설정
+        System.out.println("findIF : "+domain);
+            // DNS 조회ex
+            pcap.loop(Pcap.LOOP_INFINITE, new PcapPacketHandler<String>() { // 패킷을 10개까지만 캡처하도록 수정
+                @Override
+                public void nextPacket(PcapPacket packet, String user) {
+                    Ip4 ip = new Ip4();
+
+                        String sourceIP = org.jnetpcap.packet.format.FormatUtils.ip(ip.source());
+                        String destinationIP = org.jnetpcap.packet.format.FormatUtils.ip(ip.destination());
+                        System.out.println(sourceIP);
+                        System.out.println(destinationIP);
+                        if (destinationIP.equals("219.250.36.130")) { // DNS 서버로 전송된 패킷 필터링
+                            System.out.println("도메인: " + domain);
+                            System.out.println("IP 주소: " + sourceIP);
+                        }
+                    }
+            }, domain);
+
+            pcap.close();
     }
 }
